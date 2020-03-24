@@ -1,0 +1,305 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>Group Project 3: Smoothed Particle Hydrodynamics (SPH) Simulation (by Team Doon) &#8212; SPH  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="group-project-3-smoothed-particle-hydrodynamics-sph-simulation-by-team-doon">
+<h1><a class="toc-backref" href="#id1">Group Project 3: Smoothed Particle Hydrodynamics (SPH) Simulation (by Team Doon)</a><a class="headerlink" href="#group-project-3-smoothed-particle-hydrodynamics-sph-simulation-by-team-doon" title="Permalink to this headline">¶</a></h1>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#group-project-3-smoothed-particle-hydrodynamics-sph-simulation-by-team-doon" id="id1">Group Project 3: Smoothed Particle Hydrodynamics (SPH) Simulation (by Team Doon)</a></p>
+<ul>
+<li><p><a class="reference internal" href="#synopsis" id="id2">Synopsis</a></p></li>
+<li><p><a class="reference internal" href="#problem-definition" id="id3">Problem definition</a></p>
+<ul>
+<li><p><a class="reference internal" href="#equations" id="id4">Equations</a></p></li>
+<li><p><a class="reference internal" href="#time-stepping-method" id="id5">Time-stepping method</a></p></li>
+<li><p><a class="reference internal" href="#boundaries" id="id6">Boundaries</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#running-the-simulation" id="id7">Running the Simulation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#initial-values" id="id8">Initial values</a></p></li>
+<li><p><a class="reference internal" href="#initial-configuration" id="id9">Initial configuration</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#output-and-analysis" id="id10">Output and Analysis</a></p>
+<ul>
+<li><p><a class="reference internal" href="#post-processing" id="id11">Post-processing</a></p></li>
+<li><p><a class="reference internal" href="#viewing-and-analysing-the-simulation" id="id12">Viewing and analysing the simulation</a></p></li>
+<li><p><a class="reference internal" href="#convergence-analysis" id="id13">Convergence Analysis</a></p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="synopsis">
+<h2><a class="toc-backref" href="#id2">Synopsis</a><a class="headerlink" href="#synopsis" title="Permalink to this headline">¶</a></h2>
+<p>A Smoothed Particle Hydrodynamics (SPH) is a meshless method for solving the Navier-Stokes equation, in which fluid properties are stored on Lagrangian fluid particles (i.e. on particles which move with the fluid flow). The particles interact to generate values across the entire fluid domain through continuous smoothing kernels.</p>
+<p>As the SPH method is meshless and Lagrangian, it is ideal for solving problems involving fluid flow with interfaces and free surfaces. This tool implements the SPH method in C++ to solve wave generation in a lock-release/dam-break problem.</p>
+<p>In this project, we simulate fluid in a 2D rectangular ‘box’ domain using this method.</p>
+</div>
+<div class="section" id="problem-definition">
+<h2><a class="toc-backref" href="#id3">Problem definition</a><a class="headerlink" href="#problem-definition" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="equations">
+<h3><a class="toc-backref" href="#id4">Equations</a><a class="headerlink" href="#equations" title="Permalink to this headline">¶</a></h3>
+<p>The fluid particles are simulated using the Navier-Stokes equations:</p>
+<div class="math notranslate nohighlight">
+\begin{aligned}
+\frac{D\pmb{v}}{Dt} &amp; = -\frac{\nabla P}{\rho} + \frac{\mu}{\rho} \nabla^2\pmb{v} + \pmb{g} \\
+\frac{D\pmb{v}}{Dt} &amp; = -\rho\nabla\cdot\pmb{v}
+\end{aligned}</div><p>The SPH method allows us to approximate this by modelling individual points which follow the fluid.
+For this project we are using a cubic spline as a smoothing kernel, where the cubic spline is defined as</p>
+<div class="math notranslate nohighlight">
+\begin{aligned}
+ W(\pmb{r}, h) = \frac{10}{7\pi h^2}
+ \begin{cases}
+   1 - \frac{3}{2}q^2 + \frac{3}{4}q^3,   &amp; 0 \leq q \leq 1\\
+   \frac{1}{4}(2-q)^3, &amp; 1 \leq q \leq 2 \\
+   0, &amp; q &gt; 2
+   \end{cases}
+ \end{aligned}</div><p>where</p>
+<p><span class="math notranslate nohighlight">\(q = \frac{|\pmb{r}|}{h}\)</span>.</p>
+<p>Thus we have the approximations for the Navier-Stokes equations:</p>
+<div class="math notranslate nohighlight">
+\begin{aligned}
+  \frac{\partial\pmb{v}_i}{\partial t} \approx \pmb{a}_i &amp;= -\sum^N_{j=1} m_j\left(\frac{P_i}{\rho_i^2} + \frac{P_j}{\rho_j^2}\right) \frac{dW}{dr}(|\pmb{r}_{ij}|, h)\pmb{e}_{ij} \\
+  \frac{\partial\rho_i}{\partial t} \approx D_i &amp;= \sum^N_{j=1} m_j \frac{dW}{dr}(|\pmb{r}_{ij}|, h) \pmb[v]_{ij} \cdot \pmb{e}_{ij}
+\end{aligned}</div><p>To close the system, we use the Tait equation to relate pressure to density as follows.</p>
+<div class="math notranslate nohighlight">
+\[P = \frac{\rho_0c_0^2}{\gamma} \left(\left(\frac{\rho}{\rho_0}\right)^\gamma - 1 \right)\]</div>
+</div>
+<div class="section" id="time-stepping-method">
+<h3><a class="toc-backref" href="#id5">Time-stepping method</a><a class="headerlink" href="#time-stepping-method" title="Permalink to this headline">¶</a></h3>
+<p>Once the approximations have been calculated, we step forward in time using one of two time-stepping methods: the Forward Euler scheme, which is first-order accurate, and the Predictor-Corrector scheme, which is second-order accurate but has more complexity.</p>
+<p>The Forward Euler scheme is implemented by calculating the following for each particle:</p>
+<div class="math notranslate nohighlight">
+\begin{aligned}
+  \pmb{x}_i^{t+1} &amp;= \pmb{x}_i^t + \Delta t\ \pmb{v}_i^t \\
+  \pmb{v}_i^{t+1} &amp;= \pmb{v}_i^t + \Delta t\ \pmb{a}_i^t \\
+  \rho_i^{t+1} &amp;= \rho_i^t + \Delta t\ D_t^t
+\end{aligned}</div><p>On the other hand, the Predictor-Corrector takes a half-step:</p>
+<div class="math notranslate nohighlight">
+\begin{aligned}
+  \pmb{x}_i^{t+\frac{1}{2}} &amp;= \pmb{x}_i^t + 0.5 \Delta t\ \pmb{v}_i^t \\
+  \pmb{v}_i^{t+\frac{1}{2}} &amp;= \pmb{v}_i^t + 0.5 \Delta t\ \pmb{a}_i^t \\
+  \rho_i^{t+\frac{1}{2}} &amp;= \rho_i^t + 0.5 \Delta t\ D_t^t
+\end{aligned}</div><p>then approximates <span class="math notranslate nohighlight">\(v\)</span>, <span class="math notranslate nohighlight">\(a\)</span>, <span class="math notranslate nohighlight">\(D\)</span> at the half-step. Next, it does the full-step as follows</p>
+<div class="math notranslate nohighlight">
+\begin{aligned}
+  \pmb{x}_i^{t+1} &amp;= \pmb{x}_i^t + \Delta t\ \pmb{v}_i^{t+\frac{1}{2}} \\
+  \pmb{v}_i^{t+\frac{1}{2}} &amp;= \pmb{v}_i^t + \Delta t\ \pmb{a}_i^{t+\frac{1}{2}} \\
+  \rho_i^{t+\frac{1}{2}} &amp;= \rho_i^t + \Delta t\ D_t^{t+\frac{1}{2}}
+\end{aligned}</div></div>
+<div class="section" id="boundaries">
+<h3><a class="toc-backref" href="#id6">Boundaries</a><a class="headerlink" href="#boundaries" title="Permalink to this headline">¶</a></h3>
+<p>The simulation occurs in a rectangular ‘box’ domain of width 20m and height 10m. For the boundaries, we have a layer of particles of width :math: <cite>2h</cite> with fixed position and a fixed velocity of zero. Only the pressure and density of these particles are allowed to change.</p>
+<p>To ensure there are no leaks, any particles that reach the boundary are bounced back and its acceleration values are updated to reflect what it should be.</p>
+<p>It is possible to create obstacles within the domain i.e. setting fixed particles in various shapes.</p>
+</div>
+</div>
+<div class="section" id="running-the-simulation">
+<h2><a class="toc-backref" href="#id7">Running the Simulation</a><a class="headerlink" href="#running-the-simulation" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="initial-values">
+<h3><a class="toc-backref" href="#id8">Initial values</a><a class="headerlink" href="#initial-values" title="Permalink to this headline">¶</a></h3>
+<p>The user can specify the user can set the values of the initial particle spacing <span class="math notranslate nohighlight">\(\Delta x\)</span>, the speed of sound <span class="math notranslate nohighlight">\(c_0\)</span>, the initial density <span class="math notranslate nohighlight">\(\rho_0\)</span>, the factor <span class="math notranslate nohighlight">\(h_{fac}\)</span> for the smoothing length <span class="math notranslate nohighlight">\(h\)</span>, and the time step <span class="math notranslate nohighlight">\(\Delta t\)</span>.
+However, some of these values have conditions placed upon them for the simulation to run properly.</p>
+<p>The time-step must fulfill the following conditions:</p>
+<div class="math notranslate nohighlight">
+\[\Delta t = C_{CFL} \ min\{\Delta t_{CFL}, \Delta t_F, \Delta t_A\}\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}\begin{split}\Delta t_{CFL} &amp;= min\left\{\frac{h}{|\pmb{v}_{ij}|}\right\} \\\end{split}\\\begin{split}\Delta t_{F} &amp;= min\left\{\sqrt{\frac{h}{|\pmb{a}_i|}}\right\} \\\end{split}\\\Delta t_{A} &amp;= min\left\{\frac{h}{c_0\sqrt{(\rho/\rho_0)^{\gamma-1}}}\right\}\end{aligned}\end{align} \]</div>
+<p>The default fixed timestep for this simulation is</p>
+<div class="math notranslate nohighlight">
+\[\Delta t = 0.1 \frac{h}{c_0}\]</div>
+<p>with <span class="math notranslate nohighlight">\(c_0=20\ m/s\)</span>.</p>
+<p>The characteristic smoothing length <span class="math notranslate nohighlight">\(h\)</span> is found with</p>
+<p>with a default value of <span class="math notranslate nohighlight">\(h_{fac}=1.3\)</span>.</p>
+</div>
+<div class="section" id="initial-configuration">
+<h3><a class="toc-backref" href="#id9">Initial configuration</a><a class="headerlink" href="#initial-configuration" title="Permalink to this headline">¶</a></h3>
+<p>The <strong>default initial configuration</strong> has a water level fixed at a height of 2m, and an initial wave on the left-hand boundary of height 5m (as shown in the image below).</p>
+<img alt="_images/config0.png" src="_images/config0.png" />
+<p>The first variation, <code class="docutils literal notranslate"><span class="pre">conf1</span></code>, of the initial configuration places a wave of height 9m in the centre of the domain.</p>
+<img alt="_images/config1.png" src="_images/config1.png" />
+<p>The next configuration, <code class="docutils literal notranslate"><span class="pre">conf2</span></code>, starts with the same wave as in the default configuration, but adds a rectangular obstacle suspended on the right boundary.</p>
+<img alt="_images/config2.png" src="_images/config2.png" />
+<p>The third configuration, <code class="docutils literal notranslate"><span class="pre">conf3</span></code>, simulates a sloping shoreline on the right boundary and a wave as pictured below.</p>
+<img alt="_images/config3.png" src="_images/config3.png" />
+<p>The fourth configuration, <code class="docutils literal notranslate"><span class="pre">conf4</span></code>, is similar to the previous one, but simulates an even steeper shoreline.</p>
+<img alt="_images/config4.png" src="_images/config4.png" />
+<p>The final configuration, <code class="docutils literal notranslate"><span class="pre">conf5</span></code>, simulates the water level fixed at 5m, with a hole of depth 3m in the centre of the domain as follows.</p>
+<img alt="_images/config5.png" src="_images/config5.png" />
+</div>
+</div>
+<div class="section" id="output-and-analysis">
+<h2><a class="toc-backref" href="#id10">Output and Analysis</a><a class="headerlink" href="#output-and-analysis" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="post-processing">
+<h3><a class="toc-backref" href="#id11">Post-processing</a><a class="headerlink" href="#post-processing" title="Permalink to this headline">¶</a></h3>
+<p>The simulation will output a file every 32 iterations into the and print out the time stamp at the same time. The output can be viewed on apps such as Paraview.</p>
+<p>Alternatively, running the Jupyter Notebook <code class="docutils literal notranslate"><span class="pre">ACSE-4.3-htmlview.ipynb</span></code> will animate and analyse the output.</p>
+<p>Note that all of the outputs listed for each function below are in order.</p>
+<p>The function <code class="docutils literal notranslate"><span class="pre">read_address</span></code> takes in a string of the file name to read and split the file into its data components. The output is:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">length</span></code>: the number of points in the data.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dim</span></code>: the number of components/axes.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Pre_list</span></code>: the pressure of each particle.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">V_list</span></code>: the velocity of each particle, with a separate sub-list for each velocity component. Note that that as we are simulating in 2D, there are two sub-lists representing <span class="math notranslate nohighlight">\(v_x\)</span> and <span class="math notranslate nohighlight">\(v_y\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Point_list</span></code>: the coordinates of each particle, with a separate sub-list for each position component. Note that that as we are simulating in 2D, there are two sub-lists representing <span class="math notranslate nohighlight">\(x\)</span>- and <span class="math notranslate nohighlight">\(y\)</span>- coordinates.</p></li>
+</ul>
+<p>The function <code class="docutils literal notranslate"><span class="pre">make_grid</span></code> takes in the <code class="docutils literal notranslate"><span class="pre">Point_list</span></code> from <code class="docutils literal notranslate"><span class="pre">read_address</span></code> and makes a grid based on the position coordinates. The output is:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">step</span></code>: the spacing of the grid i.e. <span class="math notranslate nohighlight">\(dx\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">y_range</span></code>: the range of <span class="math notranslate nohighlight">\(y\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">y_grid_size</span></code>: the size of the grid to be created on the y-axis i.e. <span class="math notranslate nohighlight">\((max(y) - min(y))/dx\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">x_range</span></code>: the range of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">x_grid_size</span></code>: the size of the grid to be created on the y-axis i.e. <span class="math notranslate nohighlight">\((max(x) - min(x))/dx\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">y_coord_grid</span></code>: the indices of the <span class="math notranslate nohighlight">\(y\)</span>-values on each gridpoint.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">x_coord_grid</span></code>: the indices of the <span class="math notranslate nohighlight">\(x\)</span>-values on each gridpoint.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Vx_grid</span></code>: an initialised array of the velocity grid on the <span class="math notranslate nohighlight">\(x\)</span>-axis. Note that this array is still empty.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Vy_grid</span></code>: an initialised array of the velocity grid on the <span class="math notranslate nohighlight">\(y\)</span>-axis. Note that this array is still empty.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Pre_grid</span></code>: an initialised array of the pressure grid. Note that this array is still empty.</p></li>
+</ul>
+<p>The function <code class="docutils literal notranslate"><span class="pre">fill_grid</span></code> takes in <code class="docutils literal notranslate"><span class="pre">y_coord_grid</span></code>, <code class="docutils literal notranslate"><span class="pre">x_coord_grid`</span></code>, <code class="docutils literal notranslate"><span class="pre">Vx_grid</span></code>, <code class="docutils literal notranslate"><span class="pre">Vy_grid`</span></code> and <code class="docutils literal notranslate"><span class="pre">Pre_grid</span></code> from <code class="docutils literal notranslate"><span class="pre">make_grid</span></code>, as well as <code class="docutils literal notranslate"><span class="pre">V_list</span></code>, <code class="docutils literal notranslate"><span class="pre">Pre_list</span></code>, and <code class="docutils literal notranslate"><span class="pre">length</span></code> from <code class="docutils literal notranslate"><span class="pre">read_address</span></code>. This function fills the grid with the corresponding values of each component.
+Thus its output is</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Vx_grid</span></code>: the array of the velocity grid on the <span class="math notranslate nohighlight">\(x\)</span>-axis, now filled with values from the output files.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Vy_grid</span></code>: an initialised array of the velocity grid on the <span class="math notranslate nohighlight">\(y\)</span>-axis, now filled with values from the output files.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Pre_grid</span></code>: an initialised array of the pressure grid, now filled with values from the output files.</p></li>
+</ul>
+<p>The function <code class="docutils literal notranslate"><span class="pre">find_peak</span></code> retrieves the properties at the peak of the wave. It takes in the output lists from <code class="docutils literal notranslate"><span class="pre">read_address</span></code>, as well as <code class="docutils literal notranslate"><span class="pre">min_y</span></code> which is the minimum height (in metres) where the peak could occur. This is usually set as the initial lowest fluid level, and the default is set at 2m. Finally, an optional input is <code class="docutils literal notranslate"><span class="pre">tol</span></code>, which is a tolerance value to decide if a particle is considered to be outside of the main body of water e.g. splashing.
+The output of this function is</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">k</span></code>: the maximum height i.e. the peak/crest of the wave.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">peak_x_coord</span></code>: the corresponding <span class="math notranslate nohighlight">\(x\)</span>-coordinate at the peak.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Vy_max</span></code>: the corresponding <span class="math notranslate nohighlight">\(v_y\)</span> value at the peak.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Vx_max</span></code>: the corresponding <span class="math notranslate nohighlight">\(v_x\)</span> value at the peak.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Pre_max</span></code>: the corresponding pressure value at the peak.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">peak_index</span></code>: the index of the peak value in the lists.</p></li>
+</ul>
+<p>The function <code class="docutils literal notranslate"><span class="pre">ensemble</span></code> combines all the functions above to allow the user to run them all at once. It takes in <code class="docutils literal notranslate"><span class="pre">no</span></code>, which is the file number to read, and <code class="docutils literal notranslate"><span class="pre">tol</span></code>, which is the same input as in <code class="docutils literal notranslate"><span class="pre">find_peak</span></code>.
+The function will then output:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Pre_grid</span></code>, <code class="docutils literal notranslate"><span class="pre">Vx_grid</span></code>, <code class="docutils literal notranslate"><span class="pre">Vy_grid</span></code> from <code class="docutils literal notranslate"><span class="pre">fill_grid</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">x_coord_grid</span></code>, <code class="docutils literal notranslate"><span class="pre">y_coord_grid</span></code> from <code class="docutils literal notranslate"><span class="pre">make_grid</span></code>.</p></li>
+<li><p>All of the outputs of <code class="docutils literal notranslate"><span class="pre">find_peak</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">step</span></code> from makegrid.</p></li>
+</ul>
+</div>
+<div class="section" id="viewing-and-analysing-the-simulation">
+<h3><a class="toc-backref" href="#id12">Viewing and analysing the simulation</a><a class="headerlink" href="#viewing-and-analysing-the-simulation" title="Permalink to this headline">¶</a></h3>
+<p>Once the necessary functions have been executed, the rest of the notebook will plot and animate the wave. Simply run the rest of the notebook to see:</p>
+<ul class="simple">
+<li><p>Plots describing the wave peak: the peak height against time, the peak velocities against time, and the peak pressure against time.</p></li>
+<li><p>Animation of the wave with a the peak particle at every step highlighted.</p></li>
+<li><p>Plot of the time interval between each sloshing (when the wave hits a boundary) as well as a comparison between the theoretical and experimental results of it.</p></li>
+<li><p>Animation of the wave showing the distribution of <span class="math notranslate nohighlight">\(v_x\)</span>, <span class="math notranslate nohighlight">\(v_y\)</span>, and pressure.</p></li>
+</ul>
+</div>
+<div class="section" id="convergence-analysis">
+<h3><a class="toc-backref" href="#id13">Convergence Analysis</a><a class="headerlink" href="#convergence-analysis" title="Permalink to this headline">¶</a></h3>
+<p>A convergence analysis of the simulation can be found in <code class="docutils literal notranslate"><span class="pre">Convergence_analysis.ipynb</span></code>. It contains</p>
+<ul class="simple">
+<li><p>Comparisons between centres of mass as the resolution changes and as the number of elements in the domain changes (with a fixed resolution).</p></li>
+<li><p>Comparisons between the different variables related to the peaks when the resolution changes.</p></li>
+</ul>
+<p>Each of these comparisons does a separate analysis on the position, velocity, acceleration, density, and <span class="math notranslate nohighlight">\(\frac{\partial\rho}{\partial t}\)</span>.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">SPH</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
